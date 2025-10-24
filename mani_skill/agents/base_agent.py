@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union
@@ -8,7 +9,7 @@ import numpy as np
 import sapien
 import torch
 from gymnasium import spaces
-
+from mani_skill.agents.utils import mat2quat_torch
 from mani_skill import format_path
 from mani_skill.agents.controllers.pd_joint_pos import (
     PDJointPosController,
@@ -340,7 +341,20 @@ class BaseAgent:
         """
         Get the proprioceptive state of the agent, default is the qpos and qvel of the robot and any controller state.
         """
-        obs = dict(qpos=self.robot.get_qpos(), qvel=self.robot.get_qvel())
+        if hasattr(self, 'ee_pose'):
+            base_pose = self.base_pose.to_transformation_matrix()
+            ee_pose = self.ee_pose.to_transformation_matrix()
+            ee_in_base = torch.linalg.inv(base_pose) @ ee_pose
+            pos = ee_in_base[:,:3, 3]
+            pos = ee_in_base[:,:3, 3]  # torch tensor, device=cuda
+            quat_wxyz = mat2quat_torch(ee_in_base[:,:3, :3])
+            gripper_nwidth = 1 - self.gripper_closedness  # torch scalar
+            gripper_nwidth = gripper_nwidth.unsqueeze(-1)
+            # concatenate all into one tensor
+            eef_pos = torch.cat([pos, quat_wxyz, gripper_nwidth], dim=-1)
+            obs = dict(qpos=self.robot.get_qpos(), qvel=self.robot.get_qvel(), eef_pos=eef_pos)
+        else:
+            obs = OrderedDict(qpos=self.robot.get_qpos(), qvel=self.robot.get_qvel())
         controller_state = self.controller.get_state()
         if len(controller_state) > 0:
             obs.update(controller=controller_state)
