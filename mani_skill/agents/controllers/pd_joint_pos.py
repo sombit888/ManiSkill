@@ -69,9 +69,10 @@ class PDJointPosController(BaseController):
             ].clone()
 
     def set_drive_targets(self, targets):
-        # Apply drift if configured
-        if self.config.drift is not None:
-            drift = torch.as_tensor(self.config.drift, device=targets.device, dtype=targets.dtype)
+        # Apply drift if configured (using getattr for compatibility with subclass configs)
+        drift = getattr(self.config, 'drift', None)
+        if drift is not None:
+            drift = torch.as_tensor(drift, device=targets.device, dtype=targets.dtype)
             drift = drift.broadcast_to(targets.shape[-1:])
             targets = targets + drift
         self.articulation.set_joint_drive_targets(
