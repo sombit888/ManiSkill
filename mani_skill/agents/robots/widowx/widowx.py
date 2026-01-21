@@ -27,6 +27,38 @@ class WidowX250S(BaseAgent):
     ]
     gripper_joint_names = ["left_finger", "right_finger"]
 
+    # Drift values for each joint (arm + gripper) to simulate real-world errors
+    arm_drift = [0.01, -0.015, 0.02, 0.005, -0.01, 0.008]  # 6 arm joints
+    gripper_drift = [0.002, 0.002]  # 2 gripper joints
+
+    @property
+    def _controller_configs(self):
+        # Combine arm and gripper drift values
+        all_joint_names = self.arm_joint_names + self.gripper_joint_names
+        all_drift = self.arm_drift + self.gripper_drift
+
+        return dict(
+            pd_joint_pos=PDJointPosControllerConfig(
+                joint_names=all_joint_names,
+                lower=None,
+                upper=None,
+                stiffness=100,
+                damping=10,
+                normalize_action=False,
+                drift=all_drift,
+            ),
+            pd_joint_delta_pos=PDJointPosControllerConfig(
+                joint_names=all_joint_names,
+                lower=-0.1,
+                upper=0.1,
+                stiffness=100,
+                damping=10,
+                normalize_action=True,
+                use_delta=True,
+                drift=all_drift,
+            ),
+        )
+
     def _after_loading_articulation(self):
         self.finger1_link = self.robot.links_map["left_finger_link"]
         self.finger2_link = self.robot.links_map["right_finger_link"]

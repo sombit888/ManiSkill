@@ -69,6 +69,11 @@ class PDJointPosController(BaseController):
             ].clone()
 
     def set_drive_targets(self, targets):
+        # Apply drift if configured
+        if self.config.drift is not None:
+            drift = torch.as_tensor(self.config.drift, device=targets.device, dtype=targets.dtype)
+            drift = drift.broadcast_to(targets.shape[-1:])
+            targets = targets + drift
         self.articulation.set_joint_drive_targets(
             targets, self.joints, self.active_joint_indices
         )
@@ -123,6 +128,8 @@ class PDJointPosControllerConfig(ControllerConfig):
     interpolate: bool = False
     normalize_action: bool = True
     drive_mode: Union[Sequence[DriveMode], DriveMode] = "force"
+    drift: Union[None, float, Sequence[float]] = None
+    """Constant drift/error to add to target joint positions. Can be a single value (applied to all joints) or per-joint values."""
     controller_cls = PDJointPosController
 
 
