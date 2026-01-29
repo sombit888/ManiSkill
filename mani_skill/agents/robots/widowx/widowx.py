@@ -2,6 +2,8 @@ import numpy as np
 import sapien
 import torch
 
+from typing import List, Optional, Union
+
 from mani_skill import ASSET_DIR
 from mani_skill.agents.base_agent import BaseAgent
 from mani_skill.agents.controllers import *
@@ -27,9 +29,42 @@ class WidowX250S(BaseAgent):
     ]
     gripper_joint_names = ["left_finger", "right_finger"]
 
-    # Drift values for each joint (arm + gripper) to simulate real-world errors
-    arm_drift = [0.01, -0.015, 0.02, 0.005, -0.01, 0.008]  # 6 arm joints
-    gripper_drift = [0.002, 0.002]  # 2 gripper joints
+    # Default drift values (can be overridden via constructor)
+    default_arm_drift = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # 6 arm joints
+    default_gripper_drift = [0.0, 0.0]  # 2 gripper joints
+
+    def __init__(
+        self,
+        *args,
+        arm_drift: Optional[Union[float, List[float]]] = None,
+        gripper_drift: Optional[Union[float, List[float]]] = None,
+        **kwargs
+    ):
+        """
+        Initialize WidowX250S robot.
+
+        Args:
+            arm_drift: Drift values for 6 arm joints [waist, shoulder, elbow, forearm_roll, wrist_angle, wrist_rotate].
+                       If None, uses default (no drift). Can be a single float for all joints or a list of 6 floats.
+            gripper_drift: Drift values for 2 gripper joints [left_finger, right_finger].
+                          If None, uses default (no drift). Can be a single float for both or a list of 2 floats.
+        """
+        # Set drift values before calling parent __init__ (which calls _controller_configs)
+        if arm_drift is None:
+            self.arm_drift = self.default_arm_drift
+        elif isinstance(arm_drift, (int, float)):
+            self.arm_drift = [arm_drift] * 6
+        else:
+            self.arm_drift = list(arm_drift)
+
+        if gripper_drift is None:
+            self.gripper_drift = self.default_gripper_drift
+        elif isinstance(gripper_drift, (int, float)):
+            self.gripper_drift = [gripper_drift] * 2
+        else:
+            self.gripper_drift = list(gripper_drift)
+
+        super().__init__(*args, **kwargs)
 
     @property
     def _controller_configs(self):
