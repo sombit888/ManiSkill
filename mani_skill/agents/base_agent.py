@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union
+from collections import OrderedDict
+from collections import OrderedDict
+
 
 import numpy as np
 import sapien
@@ -246,7 +249,7 @@ class BaseAgent:
         """Get the currently activated controller uid."""
         return self._control_mode
 
-    def set_control_mode(self, control_mode: str = None):
+    def set_control_mode(self, control_mode: Optional[str] = None):
         """Sets the controller to an pre-existing controller of this agent.
         This does not reset the controller. If given control mode is None, will set to the default control mode."""
         if control_mode is None:
@@ -339,8 +342,21 @@ class BaseAgent:
     def get_proprioception(self):
         """
         Get the proprioceptive state of the agent, default is the qpos and qvel of the robot and any controller state.
-        """
-        obs = dict(qpos=self.robot.get_qpos(), qvel=self.robot.get_qvel())
+        """        
+        if hasattr(self, 'ee_pose'):
+            base_pose = self.base_pose.to_transformation_matrix()
+            ee_pose = self.ee_pose.to_transformation_matrix()
+            ee_in_base = torch.linalg.inv(base_pose) @ ee_pose
+            pos = ee_in_base[:,:3, 3]
+            pos = ee_in_base[:,:3, 3]  # torch tensor, device=cuda
+            quat_wxyz = mat2quat_torch(ee_in_base[:,:3, :3])
+            gripper_nwidth = 1 - self.gripper_closedness  # torch scalar
+            gripper_nwidth = gripper_nwidth.unsqueeze(-1)
+            # concatenate all into one tensor
+            eef_pos = torch.cat([pos, quat_wxyz, gripper_nwidth], dim=-1)
+            obs = dict(qpos=self.robot.get_qpos(), qvel=self.robot.get_qvel(), eef_pos=eef_pos)
+        else:
+            obs = OrderedDict(qpos=self.robot.get_qpos(), qvel=self.robot.get_qvel())
         controller_state = self.controller.get_state()
         if len(controller_state) > 0:
             obs.update(controller=controller_state)

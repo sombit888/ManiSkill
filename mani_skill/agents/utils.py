@@ -1,6 +1,8 @@
 # TODO(jigu): Move to sapien_utils.py
 
 from typing import Sequence
+import torch 
+
 
 import numpy as np
 import sapien
@@ -54,3 +56,28 @@ def flatten_action_spaces(action_spaces: dict[str, spaces.Space]):
     )
 
     return flat_action_space, action_mapping
+def mat2quat_torch(R: torch.Tensor) -> torch.Tensor:
+    """
+    Convert a rotation matrix to quaternion (w, x, y, z) in PyTorch.
+    R: shape [3,3] or [B,3,3]
+    Returns: shape [4] or [B,4], same device as R
+    """
+    # use torch.linalg.eigvals/eigvecs or stable formula
+    # Here’s a numerically stable method:
+    # Reference: https://github.com/matthew-brett/transforms3d/blob/master/transforms3d/quaternions.py
+
+    m = R
+    if m.ndim == 2:  # single rotation
+        qw = torch.sqrt(1 + m[0,0] + m[1,1] + m[2,2]) / 2
+        qx = (m[2,1] - m[1,2]) / (4*qw)
+        qy = (m[0,2] - m[2,0]) / (4*qw)
+        qz = (m[1,0] - m[0,1]) / (4*qw)
+        return torch.stack([qw, qx, qy, qz])
+    elif m.ndim == 3:  # batched rotation [B,3,3]
+        qw = torch.sqrt(1 + m[:,0,0] + m[:,1,1] + m[:,2,2]) / 2
+        qx = (m[:,2,1] - m[:,1,2]) / (4*qw)
+        qy = (m[:,0,2] - m[:,2,0]) / (4*qw)
+        qz = (m[:,1,0] - m[:,0,1]) / (4*qw)
+        return torch.stack([qw, qx, qy, qz], dim=1)
+    else:
+        raise ValueError("Invalid rotation matrix shape.")
