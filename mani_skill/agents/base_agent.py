@@ -353,6 +353,9 @@ class BaseAgent:
             quat_wxyz = mat2quat_torch(ee_in_base[:,:3, :3])
             gripper_nwidth = 1 - self.gripper_closedness  # torch scalar
             gripper_nwidth = gripper_nwidth.unsqueeze(-1)
+            # Ensure all tensors have the same number of dimensions
+            if gripper_nwidth.dim() < pos.dim():
+                gripper_nwidth = gripper_nwidth.expand(pos.shape[0], -1)
             # concatenate all into one tensor
             eef_pos = torch.cat([pos, quat_wxyz, gripper_nwidth], dim=-1)
             obs = dict(qpos=self.robot.get_qpos(), qvel=self.robot.get_qvel(), eef_pos=eef_pos)
