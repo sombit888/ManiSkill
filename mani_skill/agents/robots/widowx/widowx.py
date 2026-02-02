@@ -136,39 +136,39 @@ class WidowX250S(BaseAgent):
             rforce >= min_force, torch.rad2deg(rangle) <= max_angle
         )
         return torch.logical_and(lflag, rflag)
-        @property
-        def base_pose(self):
-            return self.base_link_tcp.pose
-        @property
-        def ee_pose(self):
-            return self.tcp.pose
-        @property
-        def gripper_closedness(self):
-            qpos = self.robot.get_qpos()          # [B, 8] or [8] for single robot
-            qlim = self.robot.get_qlimits()       # [B, 8, 2] or [8, 2]
+    @property
+    def base_pose(self):
+        return self.base_link_tcp.pose
+    @property
+    def ee_pose(self):
+        return self.tcp.pose
+    @property
+    def gripper_closedness(self):
+        qpos = self.robot.get_qpos()          # [B, 8] or [8] for single robot
+        qlim = self.robot.get_qlimits()       # [B, 8, 2] or [8, 2]
 
-            # Ensure tensors
-            if not isinstance(qpos, torch.Tensor):
-                qpos = torch.as_tensor(qpos, device='cuda')
-            if not isinstance(qlim, torch.Tensor):
-                qlim = torch.as_tensor(qlim, device='cuda')
+        # Ensure tensors
+        if not isinstance(qpos, torch.Tensor):
+            qpos = torch.as_tensor(qpos, device='cuda')
+        if not isinstance(qlim, torch.Tensor):
+            qlim = torch.as_tensor(qlim, device='cuda')
 
-            # If single robot, unsqueeze to make batch dim
-            if qpos.ndim == 1:
-                qpos = qpos.unsqueeze(0)       # [1, 8]
-            if qlim.ndim == 2:
-                qlim = qlim.unsqueeze(0)       # [1, 8, 2]
+        # If single robot, unsqueeze to make batch dim
+        if qpos.ndim == 1:
+            qpos = qpos.unsqueeze(0)       # [1, 8]
+        if qlim.ndim == 2:
+            qlim = qlim.unsqueeze(0)       # [1, 8, 2]
 
-            # Extract last 2 joints (fingers)
-            finger_qpos = qpos[:, -2:]           # [B, 2]
-            finger_qlim = qlim[:, -2:, :]        # [B, 2, 2]
+        # Extract last 2 joints (fingers)
+        finger_qpos = qpos[:, -2:]           # [B, 2]
+        finger_qlim = qlim[:, -2:, :]        # [B, 2, 2]
 
-            # Compute closedness
-            closedness = (finger_qlim[:, :, 1] - finger_qpos) / (finger_qlim[:, :, 1] - finger_qlim[:, :, 0])
-            closedness = torch.mean(closedness, dim=1)
-            closedness = torch.clamp(closedness, min=0.0)
+        # Compute closedness
+        closedness = (finger_qlim[:, :, 1] - finger_qpos) / (finger_qlim[:, :, 1] - finger_qlim[:, :, 0])
+        closedness = torch.mean(closedness, dim=1)
+        closedness = torch.clamp(closedness, min=0.0)
 
-            # If single robot, return scalar
-            if closedness.shape[0] == 1:
-                return closedness[0]
-            return closedness
+        # If single robot, return scalar
+        if closedness.shape[0] == 1:
+            return closedness[0]
+        return closedness
