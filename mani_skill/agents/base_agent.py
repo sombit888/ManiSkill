@@ -17,6 +17,7 @@ from mani_skill.agents.controllers.pd_joint_pos import (
     PDJointPosController,
     PDJointPosControllerConfig,
 )
+from mani_skill.agents.utils import mat2quat_torch
 from mani_skill.sensors.base_sensor import BaseSensor, BaseSensorConfig
 from mani_skill.utils import assets, download_asset, sapien_utils
 from mani_skill.utils.logging_utils import logger
