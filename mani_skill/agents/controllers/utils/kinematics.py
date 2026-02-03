@@ -182,6 +182,39 @@ class Kinematics:
         )
         self.qmask[self.controlled_joints_idx_in_qmask] = 1
 
+    def compute_fk(self, qpos: torch.Tensor) -> Pose:
+        """Compute forward kinematics to get end-effector pose from joint positions.
+
+        Args:
+            qpos: Joint positions tensor of shape (batch_size, num_joints) for all active joints in the articulation.
+
+        Returns:
+            End-effector pose computed via forward kinematics.
+        """
+        if self.use_gpu_ik:
+            # Extract only the joints relevant to the kinematic chain
+            q = qpos[:, self.active_ancestor_joint_idxs]
+            ee_tf = self.pk_chain.forward_kinematics(q).get_matrix()
+            return Pose.create_from_pq(
+                ee_tf[:, :3, 3],
+                rotation_conversions.matrix_to_quaternion(ee_tf[:, :3, :3]),
+            )
+        else:
+            # CPU path using pinocchio model
+            q = qpos[:, self.pmodel_active_joint_indices]
+            # Compute FK for each batch element
+            poses = []
+            for i in range(q.shape[0]):
+                self.pmodel.compute_forward_kinematics(q[i].cpu().numpy())
+                pose = self.pmodel.get_link_pose(self.end_link_idx)
+                poses.append(pose)
+            # Stack poses into batched Pose
+            import sapien
+            from mani_skill.utils import common
+            ps = torch.stack([common.to_tensor(p.p, device=self.device) for p in poses])
+            qs = torch.stack([common.to_tensor(p.q, device=self.device) for p in poses])
+            return Pose.create_from_pq(ps, qs)
+
     def compute_ik(
         self,
         pose: Union[Pose, torch.Tensor],

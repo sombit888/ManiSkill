@@ -84,6 +84,9 @@ class WidowX250S(BaseAgent):
                 damping=10,
                 normalize_action=False,
                 drift=all_drift,
+                urdf_path=self.urdf_path,
+                root_link_name=self.base_link,
+                ee_link=self.ee_link
             ),
             pd_joint_delta_pos=PDJointPosControllerConfig(
                 joint_names=all_joint_names,
@@ -94,6 +97,9 @@ class WidowX250S(BaseAgent):
                 normalize_action=True,
                 use_delta=True,
                 drift=all_drift,
+                urdf_path=self.urdf_path,
+                root_link_name=self.base_link,
+                ee_link=self.ee_link
             ),
         )
 

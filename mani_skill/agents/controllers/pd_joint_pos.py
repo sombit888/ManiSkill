@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Sequence, Union
+from typing import Optional, Sequence, Union
 
 import numpy as np
 import torch
@@ -34,6 +34,31 @@ class PDJointPosController(BaseController):
         joint_limits = self._get_joint_limits()
         low, high = joint_limits[:, 0], joint_limits[:, 1]
         self.single_action_space = spaces.Box(low, high, dtype=np.float32)
+
+    def _initialize_joints(self):
+        super()._initialize_joints()
+        # Initialize kinematics for forward kinematics if ee_link is configured
+        self.kinematics = None
+        self.ee_link = None
+        self.root_link = None
+        if self.config.ee_link is not None and self.config.urdf_path is not None:
+            from mani_skill.agents.controllers.utils.kinematics import Kinematics
+            from mani_skill.utils import sapien_utils
+
+            self.kinematics = Kinematics(
+                self.config.urdf_path,
+                self.config.ee_link,
+                self.articulation,
+                self.active_joint_indices,
+            )
+            self.ee_link = self.kinematics.end_link
+
+            if self.config.root_link_name is not None:
+                self.root_link = sapien_utils.get_obj_by_name(
+                    self.articulation.get_links(), self.config.root_link_name
+                )
+            else:
+                self.root_link = self.articulation.root
 
     def set_drive_property(self):
         n = len(self.joints)
@@ -107,9 +132,18 @@ class PDJointPosController(BaseController):
             self.set_drive_targets(targets)
 
     def get_state(self) -> dict:
+        state = {}
         if self.config.use_target:
-            return {"target_qpos": self._target_qpos}
-        return {}
+            state["target_qpos"] = self._target_qpos
+            # Compute target EE pose via forward kinematics if kinematics is available
+            if self.kinematics is not None:
+                target_ee_pose = self.kinematics.compute_fk(self._target_qpos)
+                # Transform to base frame if root_link is available
+                if self.root_link is not None:
+                    to_base = self.root_link.pose.inv()
+                    target_ee_pose = to_base * target_ee_pose
+                state["target_ee_pose"] = target_ee_pose.raw_pose
+        return state
 
     def set_state(self, state: dict):
         if self.config.use_target:
@@ -131,6 +165,12 @@ class PDJointPosControllerConfig(ControllerConfig):
     drive_mode: Union[Sequence[DriveMode], DriveMode] = "force"
     drift: Union[None, float, Sequence[float]] = None
     """Constant drift/error to add to target joint positions. Can be a single value (applied to all joints) or per-joint values."""
+    ee_link: Optional[str] = None
+    """Optional: The name of the end-effector link for computing target EE pose via forward kinematics in get_state()."""
+    urdf_path: Optional[str] = None
+    """Optional: Path to the URDF file defining the robot. Required if ee_link is specified."""
+    root_link_name: Optional[str] = None
+    """Optional: Root link name for transforming EE pose to base frame."""
     controller_cls = PDJointPosController
 
 
